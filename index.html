@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SnapSi — Custom Hardware for Quantitative Trading</title>
+<meta name="description" content="SnapSi converts AI models directly into custom FPGA hardware — nanosecond execution, deployed in weeks.">
+<style>
+@font-face { font-family: Styrene; src: url("https://www.agentloop.run/fonts/styrene/StyreneA-Regular-Trial-BF63f6cbd970ee9.otf") format("opentype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: Styrene; src: url("https://www.agentloop.run/fonts/styrene/StyreneA-Medium-Trial-BF63f6cbdb24b6d.otf") format("opentype"); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: Styrene; src: url("https://www.agentloop.run/fonts/styrene/StyreneA-Bold-Trial-BF63f6cbda1877f.otf") format("opentype"); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: Tiempos; src: url("https://www.agentloop.run/fonts/tiempos/TestTiemposText-Regular-BF66457a50cd521.otf") format("opentype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: Tiempos; src: url("https://www.agentloop.run/fonts/tiempos/TestTiemposText-RegularItalic-BF66457a50421c2.otf") format("opentype"); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: Tiempos; src: url("https://www.agentloop.run/fonts/tiempos/TestTiemposText-Medium-BF66457a508489a.otf") format("opentype"); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: Tiempos; src: url("https://www.agentloop.run/fonts/tiempos/TestTiemposText-Bold-BF66457a4f03c40.otf") format("opentype"); font-weight: 700; font-style: normal; font-display: swap; }
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg-deep: #1e3a5f;
+  --bg-surface: #1a3555;
+  --bg-card: rgba(255, 255, 255, 0.08);
+  --bg-card-hover: rgba(255, 255, 255, 0.12);
+  --amber: #fbbf24;
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.7);
+  --text-muted: rgba(255, 255, 255, 0.35);
+  --border: rgba(255, 255, 255, 0.1);
+  --border-hover: rgba(255, 255, 255, 0.25);
+  --font-display: 'Tiempos', Georgia, serif;
+  --font-mono: 'Styrene', system-ui, sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-snap-type: y mandatory;
+  overflow-y: scroll;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) var(--bg-deep);
+}
+
+body {
+  font-family: var(--font-mono);
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-deep); }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 3px; }
+
+/* === NAV === */
+.nav {
+  position: fixed;
+  right: 24px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.nav-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid var(--text-muted);
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.nav-dot.active {
+  border-color: #ffffff;
+  background: #ffffff;
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.2);
+}
+
+.nav-dot:hover { border-color: #ffffff; transform: scale(1.3); }
+
+.nav-dot .nav-label {
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+
+.nav-dot:hover .nav-label { opacity: 1; }
+
+/* === SECTIONS === */
+.slide {
+  height: 100vh;
+  min-height: 100vh;
+  max-height: 100vh;
+  scroll-snap-align: start;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 60px 60px;
+}
+
+.slide-inner {
+  max-width: 1100px;
+  width: 100%;
+  position: relative;
+  z-index: 2;
+}
+
+.grid-bg {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--text-muted) 0.5px, transparent 0.5px),
+    linear-gradient(90deg, var(--text-muted) 0.5px, transparent 0.5px);
+  background-size: 60px 60px;
+  opacity: 0.06;
+  pointer-events: none;
+}
+
+/* === REVEAL ANIMATIONS === */
+.reveal {
+  opacity: 0;
+  transform: translateY(40px);
+  transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.reveal-delay-1 { transition-delay: 0.1s; }
+.reveal-delay-2 { transition-delay: 0.2s; }
+.reveal-delay-3 { transition-delay: 0.3s; }
+.reveal-delay-4 { transition-delay: 0.4s; }
+
+/* === TYPOGRAPHY === */
+.section-label {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.45);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.section-label::before {
+  content: '';
+  display: block;
+  width: 24px;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.section-title {
+  font-family: var(--font-display);
+  font-size: clamp(2.2rem, 4.5vw, 3.4rem);
+  font-weight: 400;
+  line-height: 1.15;
+  margin-bottom: 40px;
+  letter-spacing: 0;
+}
+
+.section-title span {
+  font-style: italic;
+  color: var(--amber);
+}
+
+/* === HERO === */
+#hero {
+  background: radial-gradient(ellipse at 70% 40%, #1a3050 0%, var(--bg-deep) 70%);
+}
+
+.hero-content {
+  text-align: left;
+  position: relative;
+  z-index: 2;
+}
+
+.hero-logo {
+  font-family: var(--font-display);
+  font-size: clamp(72px, 12vw, 140px);
+  font-weight: 700;
+  letter-spacing: -2px;
+  line-height: 1;
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, #ffffff 0%, #e0ecff 50%, #ffffff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  position: relative;
+}
+
+.hero-logo::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  width: 120px;
+  height: 3px;
+  background: linear-gradient(90deg, #ffffff, transparent);
+}
+
+.hero-tagline {
+  font-size: clamp(20px, 3vw, 30px);
+  font-weight: 300;
+  color: var(--text-secondary);
+  margin-bottom: 48px;
+  letter-spacing: -0.5px;
+  max-width: 680px;
+}
+
+.hero-tagline em {
+  font-style: normal;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.hero-meta {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+/* === CARDS === */
+.card-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+  margin-top: 40px;
+}
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 36px 32px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.3s, transform 0.3s;
+}
+
+.card:hover {
+  border-color: rgba(251, 191, 36, 0.3);
+  transform: translateY(-4px);
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--amber), transparent);
+}
+
+.card-icon {
+  font-size: 28px;
+  margin-bottom: 20px;
+  display: flex;
+  width: 48px;
+  height: 48px;
+  background: rgba(251, 191, 36, 0.12);
+  border-radius: 10px;
+  align-items: center;
+  justify-content: center;
+  color: var(--amber);
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+.card h3 {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: var(--text-primary);
+}
+
+.card p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.highlight {
+  color: var(--amber);
+  font-weight: 600;
+}
+
+/* === CALLOUT === */
+.callout {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-left: 3px solid var(--amber);
+  border-radius: 8px;
+  padding: 24px 32px;
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--text-primary);
+  margin-top: 32px;
+}
+
+/* === OUTCOME SLIDES === */
+.outcome-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  margin-top: 40px;
+  align-items: start;
+}
+
+.outcome-visual {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.outcome-bar-group {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.outcome-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.outcome-bar-label {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.outcome-bar-track {
+  height: 40px;
+  border-radius: 8px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+}
+
+.outcome-bar-fill {
+  height: 100%;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.outcome-bar-fill.slow {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
+  width: 100%;
+  color: var(--text-secondary);
+}
+
+.outcome-bar-fill.fast {
+  background: rgba(251, 191, 36, 0.2);
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  width: 8%;
+  min-width: 160px;
+  color: var(--amber);
+}
+
+.outcome-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.outcome-detail-item {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px 28px;
+}
+
+.outcome-detail-item h4 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--amber);
+  margin-bottom: 8px;
+}
+
+.outcome-detail-item p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+/* === TIMELINE COMPARISON === */
+.timeline-compare {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  margin-top: 40px;
+}
+
+.timeline-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.timeline-label {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.timeline-track {
+  height: 56px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.timeline-track.traditional {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+}
+
+.timeline-track.snapsi {
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.timeline-segment {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  white-space: nowrap;
+}
+
+.timeline-segment:last-child { border-right: none; }
+
+.timeline-segment.active {
+  color: var(--amber);
+  font-weight: 600;
+}
+
+.timeline-total {
+  position: absolute;
+  right: 20px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.timeline-total.slow { color: var(--text-muted); }
+.timeline-total.fast { color: var(--amber); }
+
+/* === DETAIL CARDS for slide 4 === */
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 20px;
+  margin-top: 32px;
+}
+
+.detail-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px 24px;
+  text-align: center;
+}
+
+.detail-card .detail-value {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--amber);
+  margin-bottom: 8px;
+}
+
+.detail-card .detail-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* === CTA === */
+#cta {
+  background: radial-gradient(ellipse at 30% 60%, #1a3050 0%, var(--bg-deep) 70%);
+}
+
+.cta-title {
+  font-family: var(--font-display);
+  font-size: clamp(2.5rem, 5vw, 4rem);
+  font-weight: 400;
+  line-height: 1.15;
+  margin-bottom: 24px;
+}
+
+.cta-title span {
+  font-style: italic;
+  color: var(--amber);
+}
+
+.cta-subtitle {
+  font-size: 18px;
+  color: var(--text-secondary);
+  margin-bottom: 48px;
+  max-width: 520px;
+}
+
+.cta-contact {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.cta-contact a {
+  color: var(--amber);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.cta-contact a:hover { color: #ffffff; }
+
+.cta-url {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 900px) {
+  .slide { padding: 40px 28px; }
+  .card-grid, .outcome-layout { grid-template-columns: 1fr; }
+  .detail-grid { grid-template-columns: 1fr; }
+  .nav { display: none; }
+}
+
+@media (max-width: 600px) {
+  .slide { padding: 32px 20px; }
+  .hero-logo { font-size: 56px; }
+  .section-title { font-size: 1.8rem; }
+}
+</style>
+</head>
+<body>
+
+<!-- Nav dots -->
+<nav class="nav">
+  <div class="nav-dot" data-target="hero"><span class="nav-label">Home</span></div>
+  <div class="nav-dot" data-target="problem"><span class="nav-label">The Problem</span></div>
+  <div class="nav-dot" data-target="latency"><span class="nav-label">Latency</span></div>
+  <div class="nav-dot" data-target="speed"><span class="nav-label">Time-to-Market</span></div>
+  <div class="nav-dot" data-target="cta"><span class="nav-label">Contact</span></div>
+</nav>
+
+<!-- ==================== HERO ==================== -->
+<section class="slide" id="hero">
+  <div class="grid-bg"></div>
+  <div class="slide-inner">
+    <div class="hero-content">
+      <div class="reveal">
+        <div class="hero-logo">SnapSi</div>
+        <div class="hero-tagline">Your strategy is fast.<br><em>Your hardware isn't.</em></div>
+      </div>
+      <div class="reveal reveal-delay-1">
+        <p style="font-size: 16px; color: var(--text-secondary); max-width: 560px; margin-bottom: 32px;">
+          SnapSi converts AI models directly into custom FPGA hardware &mdash; nanosecond execution, deployed in weeks, not months.
+        </p>
+      </div>
+      <div class="reveal reveal-delay-2">
+        <div class="hero-meta">
+          <span>For quantitative trading teams</span>
+          <span style="color: var(--amber);">&mdash;</span>
+          <span>snapsi.ai</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== PROBLEM ==================== -->
+<section class="slide" id="problem">
+  <div class="grid-bg"></div>
+  <div class="slide-inner">
+    <div class="reveal">
+      <div class="section-label">01 / The Problem</div>
+      <h2 class="section-title">Every microsecond is <span>alpha<br>left on the table</span></h2>
+    </div>
+    <div class="card-grid">
+      <div class="card reveal reveal-delay-1">
+        <div class="card-icon">&micro;s</div>
+        <h3>The latency gap</h3>
+        <p>Your models run on general-purpose hardware. Competitors on custom silicon execute in <strong class="highlight">nanoseconds</strong>. The gap between software-based execution and FPGA-accelerated trading is measured directly in P&L.</p>
+      </div>
+      <div class="card reveal reveal-delay-2">
+        <div class="card-icon">&gt;&gt;</div>
+        <h3>The hardware bottleneck</h3>
+        <p>Building custom accelerators takes <strong class="highlight">months of manual translation</strong> by scarce HLS engineers. By the time hardware ships, your strategy has already evolved &mdash; and the edge has moved.</p>
+      </div>
+    </div>
+    <div class="callout reveal reveal-delay-3">
+      The result: quant teams are forced to choose between <strong style="color: var(--amber);">speed of execution</strong> and <strong style="color: var(--amber);">speed of iteration</strong>. SnapSi eliminates that trade-off.
+    </div>
+  </div>
+</section>
+
+<!-- ==================== OUTCOME 1: LATENCY ==================== -->
+<section class="slide" id="latency">
+  <div class="grid-bg"></div>
+  <div class="slide-inner">
+    <div class="reveal">
+      <div class="section-label">02 / Outcome</div>
+      <h2 class="section-title">From milliseconds<br>to <span>nanoseconds</span></h2>
+    </div>
+    <div class="outcome-layout">
+      <div class="outcome-visual reveal reveal-delay-1">
+        <div class="outcome-bar-group">
+          <div class="outcome-bar">
+            <div class="outcome-bar-label">Software-based execution</div>
+            <div class="outcome-bar-track">
+              <div class="outcome-bar-fill slow">1 &ndash; 5 ms</div>
+            </div>
+          </div>
+          <div class="outcome-bar">
+            <div class="outcome-bar-label">SnapSi FPGA-accelerated</div>
+            <div class="outcome-bar-track">
+              <div class="outcome-bar-fill fast">Sub-&micro;s to ns</div>
+            </div>
+          </div>
+        </div>
+        <div style="font-size: 13px; color: var(--text-muted); margin-top: 8px; font-style: italic;">Orders of magnitude reduction in execution latency</div>
+      </div>
+      <div class="outcome-detail reveal reveal-delay-2">
+        <div class="outcome-detail-item">
+          <h4>Alpha capture</h4>
+          <p>Faster execution means your orders land closer to the signal. In markets where latency is the differentiator, nanoseconds compound into edge.</p>
+        </div>
+        <div class="outcome-detail-item">
+          <h4>Reduced slippage</h4>
+          <p>Hardware-level execution eliminates the variability of software stacks. Consistent, deterministic performance on every trade.</p>
+        </div>
+        <div class="outcome-detail-item">
+          <h4>Custom to your strategy</h4>
+          <p>Not a generic FPGA overlay &mdash; SnapSi generates hardware architecture tailored to your specific model, optimized end-to-end.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== OUTCOME 2: TIME-TO-MARKET ==================== -->
+<section class="slide" id="speed">
+  <div class="grid-bg"></div>
+  <div class="slide-inner">
+    <div class="reveal">
+      <div class="section-label">03 / Outcome</div>
+      <h2 class="section-title">Your hardware keeps pace<br>with <span>your models</span></h2>
+    </div>
+    <div class="reveal reveal-delay-1">
+      <div class="timeline-compare">
+        <div class="timeline-row">
+          <div class="timeline-label">Traditional path</div>
+          <div class="timeline-track traditional">
+            <div class="timeline-segment" style="width: 25%;">Model design</div>
+            <div class="timeline-segment" style="width: 40%;">Manual HLS translation</div>
+            <div class="timeline-segment" style="width: 20%;">Verification</div>
+            <div class="timeline-segment" style="width: 15%;">Deploy</div>
+            <span class="timeline-total slow">4 &ndash; 8 months</span>
+          </div>
+        </div>
+        <div class="timeline-row">
+          <div class="timeline-label">With SnapSi</div>
+          <div class="timeline-track snapsi">
+            <div class="timeline-segment active" style="width: 40%;">Model design</div>
+            <div class="timeline-segment active" style="width: 25%;">SnapSi (automated)</div>
+            <div class="timeline-segment active" style="width: 20%;">Verify</div>
+            <div class="timeline-segment active" style="width: 15%;">Deploy</div>
+            <span class="timeline-total fast">Weeks</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="detail-grid reveal reveal-delay-2">
+      <div class="detail-card">
+        <div class="detail-value">Continuous</div>
+        <div class="detail-label">Strategy changes flow directly to hardware &mdash; no manual re-architecture</div>
+      </div>
+      <div class="detail-card">
+        <div class="detail-value">Automated</div>
+        <div class="detail-label">End-to-end from AI model to synthesizable SystemC &mdash; no HLS expertise required</div>
+      </div>
+      <div class="detail-card">
+        <div class="detail-value">Reliable</div>
+        <div class="detail-label">Architecture IR ensures correctness &mdash; not probabilistic, not approximate</div>
+      </div>
+    </div>
+    <div class="callout reveal reveal-delay-3" style="margin-top: 28px;">
+      When your hardware cycle compresses from months to weeks, <strong style="color: var(--amber);">your strategy iteration rate becomes your competitive advantage</strong> &mdash; not your bottleneck.
+    </div>
+  </div>
+</section>
+
+<!-- ==================== CTA ==================== -->
+<section class="slide" id="cta">
+  <div class="grid-bg"></div>
+  <div class="slide-inner">
+    <div class="reveal">
+      <h2 class="cta-title">Let's <span>talk.</span></h2>
+      <p class="cta-subtitle">See how SnapSi can accelerate your trading infrastructure &mdash; from model to silicon.</p>
+    </div>
+    <div class="reveal reveal-delay-1">
+      <div class="cta-contact">
+        Calvin Chen &mdash; <a href="mailto:calvin@snapsi.ai">calvin@snapsi.ai</a>
+      </div>
+    </div>
+    <div class="reveal reveal-delay-2">
+      <div class="cta-url">snapsi.ai</div>
+    </div>
+  </div>
+</section>
+
+<script>
+// Scroll reveal
+const reveals = document.querySelectorAll('.reveal');
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.15 });
+reveals.forEach(r => observer.observe(r));
+
+// Nav dots
+const dots = document.querySelectorAll('.nav-dot');
+const slides = document.querySelectorAll('.slide');
+
+dots.forEach(d => d.addEventListener('click', () => {
+  document.getElementById(d.dataset.target).scrollIntoView({ behavior: 'smooth' });
+}));
+
+const navObserver = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      dots.forEach(d => d.classList.remove('active'));
+      const active = document.querySelector(`.nav-dot[data-target="${e.target.id}"]`);
+      if (active) active.classList.add('active');
+    }
+  });
+}, { threshold: 0.5 });
+slides.forEach(s => navObserver.observe(s));
+</script>
+</body>
+</html>

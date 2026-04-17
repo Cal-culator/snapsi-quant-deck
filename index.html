@@ -66,12 +66,15 @@ body {
 .nav-dot {
   width: 10px;
   height: 10px;
+  min-width: 10px;
+  min-height: 10px;
   border-radius: 50%;
   border: 1.5px solid var(--text-muted);
   background: transparent;
   cursor: pointer;
   transition: all 0.3s ease;
   position: relative;
+  overflow: hidden;
 }
 
 .nav-dot.active {
